@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "crewai-industry-report"
+version = "0.2.0"
+description = "行业研究报告生成项目 - 基于CrewAI的多代理协作系统"
+authors = ["neohope <neohope@yahoo.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.13"
+crewai = "^0.76.0"
+langchain-openai = "^0.2.0"
+python-dotenv = "^1.0.0"
+requests = "^2.31.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0.0"
+black = "^24.0.0"
+isort = "^5.13.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

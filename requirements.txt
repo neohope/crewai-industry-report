@@ -1,0 +1,12 @@
+# 核心依赖
+crewai>=0.76.0
+langchain-openai>=0.2.0
+python-dotenv>=1.0.0
+
+# 搜索工具
+requests>=2.31.0
+
+# 开发工具
+pytest>=8.0.0
+black>=24.0.0
+isort>=5.13.0
