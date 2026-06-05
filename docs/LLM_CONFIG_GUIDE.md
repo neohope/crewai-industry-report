@@ -43,7 +43,10 @@ PASSING_SCORE=90
 1. 复制 `.env.example` 为 `.env`
 2. 选择一种配置方式，设置对应的 `USE_*=true` 并填写配置项
 3. **必须**设置模型名称，没有默认值
-4. 运行项目：`poetry run python src/main.py`
+4. 运行项目（必需 --topic 参数）：
+   ```bash
+   poetry run python src/main.py --topic "人工智能"
+   ```
 
 ---
 

@@ -66,12 +66,6 @@ python check.py
 poetry install
 ```
 
-或使用 pip：
-
-```bash
-pip install -r requirements.txt
-```
-
 ### 3. 配置环境
 
 ```bash
@@ -109,11 +103,14 @@ python test_crew.py
 ### 6. 运行完整工作流
 
 ```bash
-# 使用 Poetry
-poetry run python src/main.py
+# 使用 Poetry（必需 --topic 参数指定行业主题）
+poetry run python src/main.py --topic "人工智能"
 
-# 或直接运行
-python src/main.py
+# 或使用短参数
+poetry run python src/main.py -t "新能源汽车"
+
+# 查看帮助
+poetry run python src/main.py --help
 ```
 
 ## 📖 详细使用指南
@@ -177,7 +174,6 @@ python src/main.py
 
 | 文件 | 测试内容 |
 |------|---------|
-| check.py | 项目结构和Python版本（无依赖）|
 | test_search_tools.py | 网络搜索和新闻搜索工具 |
 | test_feishu_tools.py | 飞书文档和消息工具 |
 | test_crew.py | 主程序、代理、任务、评分逻辑 |
@@ -186,13 +182,10 @@ python src/main.py
 ### 验证步骤
 
 ```bash
-# 1. 基础检查
-python check.py
-
-# 2. 安装依赖后，运行完整测试
+# 1. 安装依赖后，运行完整测试
 python run_all_tests.py
 
-# 3. 如果全部通过，运行主程序
+# 2. 如果全部通过，运行主程序
 python src/main.py
 ```
 
@@ -256,13 +249,10 @@ LARK_FOLDER_TOKEN=xxxxxxxxxx
 # 2. 验证安装
 python run_all_tests.py
 
-# 3. 运行系统
-python src/main.py
+# 3. 运行系统（必需 --topic 参数）
+python src/main.py --topic "人工智能"
 
-# 4. 输入行业主题
-# 例如: 人工智能、新能源汽车、半导体、生物医药等
-
-# 5. 等待完成
+# 4. 等待完成
 # 系统会自动完成所有阶段，最终输出报告
 ```
 
@@ -273,11 +263,17 @@ python src/main.py
           行业研究报告生成系统 - 完整版
 ================================================================================
 
-请输入要研究的行业主题: 人工智能
-使用默认主题: 人工智能
+✅ LLM 配置已加载:
+   提供商: OpenAI
+   模型: gpt-4o
 
-即将开始研究: 人工智能
-确认开始？(y/n): y
+✅ 质量控制配置已加载:
+   最大审核迭代次数: 2
+   通过评分阈值: 95分
+
+📋 行业主题: 人工智能
+
+🚀 开始研究...
 
 ================================================================================
    开始人工智能行业研究项目

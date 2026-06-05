@@ -20,15 +20,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # 安装依赖
 poetry install
 
-# 运行项目
-poetry run python src/main.py
+# 运行项目（必需 --topic 参数指定行业主题）
+poetry run python src/main.py --topic "人工智能"
+poetry run python src/main.py -t "新能源汽车"
+
+# 查看帮助
+poetry run python src/main.py --help
 
 # 运行测试
 poetry run pytest
-
-# 代码格式化
-poetry run black src/ tests/
-poetry run isort src/ tests/
 ```
 
 ## 项目架构

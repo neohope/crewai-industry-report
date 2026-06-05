@@ -673,9 +673,37 @@ class IndustryResearchCrew:
 
 def main():
     """主函数 - 完整实现"""
+    import argparse
+
     print("="*80)
     print("          行业研究报告生成系统 - 完整版")
     print("="*80)
+
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(
+        description="行业研究报告生成系统",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+示例:
+  python src/main.py --topic "人工智能"
+  python src/main.py -t "新能源汽车"
+        """
+    )
+    parser.add_argument(
+        "--topic", "-t",
+        type=str,
+        required=True,
+        help="要研究的行业主题（必需）"
+    )
+    args = parser.parse_args()
+
+    # 获取并验证行业主题
+    industry_topic = args.topic.strip()
+    if not industry_topic:
+        print(f"\n❌ 错误: 行业主题不能为空")
+        print(f"\n使用帮助:")
+        parser.print_help()
+        sys.exit(1)
 
     # 验证 LLM 配置
     is_valid, error_msg = validate_config()
@@ -700,18 +728,9 @@ def main():
     print(f"   最大审核迭代次数: {get_max_review_iterations()}")
     print(f"   通过评分阈值: {get_passing_score()}分")
 
-    # 获取行业主题
-    industry_topic = input("\n请输入要研究的行业主题: ").strip()
-    if not industry_topic:
-        industry_topic = "人工智能"
-        print(f"使用默认主题: {industry_topic}")
-
-    # 确认
-    print(f"\n即将开始研究: {industry_topic}")
-    confirm = input("确认开始？(y/n): ").strip().lower()
-    if confirm not in ["y", "yes", "是", ""]:
-        print("已取消")
-        sys.exit(0)
+    # 显示研究主题
+    print(f"\n📋 行业主题: {industry_topic}")
+    print(f"\n🚀 开始研究...\n")
 
     # 创建并运行研究团队
     research_crew = IndustryResearchCrew(industry_topic)
