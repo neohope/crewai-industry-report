@@ -2,7 +2,7 @@
 
 ## 概述
 
-已完成 `feishu_tool.py` 的完整实现，从占位符改为真实的 lark-cli 调用。
+已完成 `feishu_tool.py` 的完整实现，通过 lark-cli 调用。
 
 ## 功能实现
 

@@ -13,6 +13,8 @@ from crewai import Crew, Agent, Task, Process
 # 导入真实工具
 from src.tools.search_tool import WebSearchTool, NewsSearchTool
 from src.tools.feishu_tool import FeishuDocumentTool, FeishuMessageTool
+from src.tools.llm_config import get_llm, get_config_info, validate_config
+from src.tools.llm_config import get_max_review_iterations, get_passing_score
 
 # 加载环境变量
 load_dotenv()
@@ -31,6 +33,13 @@ class IndustryResearchCrew:
         self.final_score = 0
         self.report_approved = False
 
+        # 初始化配置
+        self.max_iterations = get_max_review_iterations()
+        self.passing_score = get_passing_score()
+
+        # 初始化 LLM
+        self.llm = get_llm(temperature=0.7)
+
     def create_data_collector_1(self) -> Agent:
         """数据采集员1 - 市场数据采集 - 完整实现"""
         return Agent(
@@ -43,6 +52,7 @@ class IndustryResearchCrew:
             tools=[self.web_search, self.news_search],
             allow_delegation=False,
             verbose=True,
+            llm=self.llm,
         )
 
     def create_data_collector_2(self) -> Agent:
@@ -57,6 +67,7 @@ class IndustryResearchCrew:
             tools=[self.web_search, self.news_search],
             allow_delegation=False,
             verbose=True,
+            llm=self.llm,
         )
 
     def create_data_collector_3(self) -> Agent:
@@ -71,6 +82,7 @@ class IndustryResearchCrew:
             tools=[self.web_search, self.news_search],
             allow_delegation=False,
             verbose=True,
+            llm=self.llm,
         )
 
     def create_data_analyst(self) -> Agent:
@@ -88,6 +100,7 @@ class IndustryResearchCrew:
 你只相信经过交叉验证的数据，对存疑数据会明确标注。""",
             allow_delegation=False,
             verbose=True,
+            llm=self.llm,
         )
 
     def create_report_writer(self) -> Agent:
@@ -101,24 +114,26 @@ class IndustryResearchCrew:
 你能够根据评价师的反馈，精准地修改和完善报告内容，直到达到高质量标准。""",
             allow_delegation=False,
             verbose=True,
+            llm=self.llm,
         )
 
     def create_report_reviewer(self) -> Agent:
         """报告评价师 - 完整实现"""
         return Agent(
             role="报告评价师",
-            goal="以极其严格的标准审核报告质量，从多个维度进行评分，只有达到95分以上才能通过",
-            backstory="""你是业内知名的报告质量审核专家，以标准极其严格著称。
+            goal=f"以极其严格的标准审核报告质量，从多个维度进行评分，只有达到{self.passing_score}分以上才能通过",
+            backstory=f"""你是业内知名的报告质量审核专家，以标准极其严格著称。
 你审核报告的四个维度（总分100分）：
 1. 内容详实性（30分）：数据是否丰富、案例是否充分、覆盖是否全面
 2. 逻辑性（30分）：结构是否清晰、论证是否严密、逻辑是否自洽
 3. 可靠性（25分）：数据来源是否明确、分析是否客观、结论是否有依据
 4. 可读性（15分）：表达是否流畅、层次是否分明、阅读体验是否良好
-评分低于95分时，你必须给出具体、可操作的修改意见；
-评分达到或超过95分时，你批准报告发布。
+评分低于{self.passing_score}分时，你必须给出具体、可操作的修改意见；
+评分达到或超过{self.passing_score}分时，你批准报告发布。
 你的评分总是非常精准，评语总是非常具体。""",
             allow_delegation=False,
             verbose=True,
+            llm=self.llm,
         )
 
     def create_report_publisher(self) -> Agent:
@@ -136,6 +151,7 @@ class IndustryResearchCrew:
             tools=[self.feishu_doc, self.feishu_msg],
             allow_delegation=False,
             verbose=True,
+            llm=self.llm,
         )
 
     def create_collect_task_1(self, agent: Agent) -> Task:
@@ -371,7 +387,7 @@ class IndustryResearchCrew:
 ---
 
 重要说明：
-- 只有总分≥95分时，"是否通过"才填"是"
+- 只有总分≥{self.passing_score}分时，"是否通过"才填"是"
 - 否则必须给出至少3条具体修改意见
 - 评分要精准，评语要具体""",
             agent=agent,
@@ -435,7 +451,7 @@ class IndustryResearchCrew:
 
     def is_approved(self, review_text: str, score: int) -> bool:
         """判断报告是否通过 - 完整实现"""
-        if score >= 95:
+        if score >= self.passing_score:
             return True
         # 检查明确的通过标识
         approval_keywords = ["是否通过：是", "通过：是", "批准发布", "同意发布"]
@@ -513,7 +529,6 @@ class IndustryResearchCrew:
             print(f"\n[{datetime.now().strftime('%H:%M:%S')}] ✍️  阶段3: 报告撰写与质量审核")
             print(f"{'='*80}")
 
-            max_iterations = 2
             iteration = 0
             review_feedback = None
             final_report_content = ""
@@ -522,9 +537,9 @@ class IndustryResearchCrew:
             writer = self.create_report_writer()
             reviewer = self.create_report_reviewer()
 
-            while iteration < max_iterations and not self.report_approved:
+            while iteration < self.max_iterations and not self.report_approved:
                 iteration += 1
-                print(f"\n--- 迭代 {iteration}/{max_iterations} ---")
+                print(f"\n--- 迭代 {iteration}/{self.max_iterations} ---")
 
                 # 撰写报告
                 print("报告撰写师开始工作...")
@@ -576,7 +591,7 @@ class IndustryResearchCrew:
                     self.final_report = current_report
                 else:
                     print(f"\n⚠️  报告需改进，当前评分: {self.final_score}分")
-                    if iteration < max_iterations:
+                    if iteration < self.max_iterations:
                         print("将根据评价师意见进行修改...")
                         review_feedback = review_text
 
@@ -584,7 +599,7 @@ class IndustryResearchCrew:
                 print(f"\n⚠️  已达最大迭代次数，发布最新版本")
                 self.final_report = final_report_content
                 # 使用最后一次的评分
-                self.final_score = all_results[f"iteration_{max_iterations}"]["score"]
+                self.final_score = all_results[f"iteration_{self.max_iterations}"]["score"]
 
             # ==================== 阶段4: 报告发布 ====================
             print(f"\n[{datetime.now().strftime('%H:%M:%S')}] 📤 阶段4: 报告发布")
@@ -662,12 +677,28 @@ def main():
     print("          行业研究报告生成系统 - 完整版")
     print("="*80)
 
-    # 检查环境变量
-    openai_key = os.getenv("OPENAI_API_KEY")
-    if not openai_key:
-        print("\n⚠️  警告: OPENAI_API_KEY 未设置")
-        print("请先配置 .env 文件")
-        print("\n提示: 复制 .env.example 为 .env 并填入你的 API 密钥\n")
+    # 验证 LLM 配置
+    is_valid, error_msg = validate_config()
+    if not is_valid:
+        print(f"\n❌ LLM 配置错误: {error_msg}")
+        print("\n请先配置 .env 文件")
+        print("提示: 复制 .env.example 为 .env 并填入相应的配置\n")
+        sys.exit(1)
+
+    # 显示 LLM 配置信息
+    config_info = get_config_info()
+    print(f"\n✅ LLM 配置已加载:")
+    print(f"   提供商: {config_info['provider']}")
+    print(f"   模型: {config_info['model']}")
+    if 'base_url' in config_info:
+        print(f"   地址: {config_info['base_url']}")
+    if 'endpoint' in config_info:
+        print(f"   端点: {config_info['endpoint']}")
+
+    # 显示质量控制配置
+    print(f"\n✅ 质量控制配置已加载:")
+    print(f"   最大审核迭代次数: {get_max_review_iterations()}")
+    print(f"   通过评分阈值: {get_passing_score()}分")
 
     # 获取行业主题
     industry_topic = input("\n请输入要研究的行业主题: ").strip()

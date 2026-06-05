@@ -135,19 +135,7 @@ def try_import_config_module():
 
         # 打印配置摘要
         safe_print("\n当前配置摘要:")
-        safe_print(f"  搜索技能: {'启用' if Config.search.use_skill() else '禁用'}")
-        safe_print(f"  默认结果数: {Config.search.default_max_results()}")
-        safe_print(f"  飞书技能: {'启用' if Config.feishu.use_skill() else '禁用'}")
-        safe_print(f"  本地后备: {'启用' if Config.feishu.use_local_fallback() else '禁用'}")
-
-        # 验证配置
-        config_ok, errors = Config.validate()
-        if errors:
-            safe_print("\n配置警告:")
-            for error in errors:
-                safe_print(f"  - {error}")
-        else:
-            safe_print("\n配置验证: 通过")
+        safe_print(f"  飞书配置已加载")
 
         return True
     except ImportError as e:
