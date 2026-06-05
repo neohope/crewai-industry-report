@@ -411,7 +411,7 @@ crewai-report/
 
 - [ ] Python 3.10+ 已安装
 - [ ] `.env` 文件已配置
-- [ ] `OPENAI_API_KEY` 已设置
+- [ ] `LLM` 已设置
 - [ ] 依赖已安装
 - [ ] `python run_all_tests.py` 全部通过
 
