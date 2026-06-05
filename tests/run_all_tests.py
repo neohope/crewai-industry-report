@@ -52,8 +52,6 @@ def check_project_structure():
         "src/tools/__init__.py",
         "src/tools/search_tool.py",
         "src/tools/feishu_tool.py",
-        "src/tools/config.py",
-        "src/tools/timeout_manager.py",
         "tests/test_search_tools.py",
         "tests/test_feishu_tools.py",
         "tests/test_crew.py",

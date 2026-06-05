@@ -386,8 +386,6 @@ crewai-report/
 │       ├── __init__.py
 │       ├── search_tool.py      # 搜索工具（支持byted-web-search技能）
 │       ├── feishu_tool.py      # 飞书工具（支持lark-doc/lark-im技能）
-│       ├── config.py           # 工具配置管理
-│       └── timeout_manager.py  # 超时和kill管理
 └── tests/
     └── __init__.py
 ```

@@ -39,7 +39,6 @@ poetry run isort src/ tests/
 - `src/tools/search_tool.py` - 网络搜索工具（支持byted-web-search技能）
 - `src/tools/feishu_tool.py` - 飞书文档和消息工具（支持lark-doc/lark-im技能）
 - `src/tools/config.py` - 工具配置管理
-- `src/tools/timeout_manager.py` - 超时和kill管理
 
 ### 代理角色
 
