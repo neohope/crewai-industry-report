@@ -5,8 +5,8 @@
 ## 🌟 系统特点
 
 - **7个专业代理** - 完整的角色分工和职责定义
-- **4阶段工作流程** - 并行采集 → 验证分析 → 撰写审核 → 飞书发布
-- **智能质量控制** - 95分以上通过标准，最多3次迭代优化
+- **4阶段工作流程** - 数据采集 → 验证分析 → 撰写审核 → 飞书发布
+- **智能质量控制** - 95分以上通过标准，最大迭代次数由 `MAX_REVIEW_ITERATIONS` 配置
 - **真实工具集成** - 网络搜索、新闻搜索、飞书文档/消息
 - **完整测试套件** - 多层级验证，确保功能可用
 
@@ -148,8 +148,8 @@ poetry run python src/main.py --help
 
 ### 工作流程详情
 
-#### 阶段1: 并行数据采集
-- 3位采集员同时工作
+#### 阶段1: 数据采集
+- 3位采集员按 CrewAI 当前兼容模式顺序工作
 - 使用真实网络搜索工具
 - 结构化数据输出
 
@@ -160,7 +160,7 @@ poetry run python src/main.py --help
 
 #### 阶段3: 报告撰写与审核循环
 - 撰写 → 审核 → 修改
-- 最多3次迭代
+- 最大迭代次数由 `MAX_REVIEW_ITERATIONS` 配置
 - 直到评分≥95分
 
 #### 阶段4: 报告发布
@@ -186,7 +186,7 @@ poetry run python src/main.py --help
 python run_all_tests.py
 
 # 2. 如果全部通过，运行主程序
-python src/main.py
+python src/main.py --topic "人工智能"
 ```
 
 ## 🔧 工具模块说明
@@ -202,8 +202,10 @@ python src/main.py
 
 - **FeishuDocumentTool**: 创建飞书文档，备选本地文件保存
 - **FeishuMessageTool**: 发送飞书消息，备选本地日志记录
+- 优先使用项目 `.env` 中的 `LARK_APP_ID` / `LARK_APP_SECRET` 直接调用飞书 OpenAPI；`lark-cli` 仅作为未配置应用凭据时的 fallback
+- 工具会强制加载项目根目录 `.env` 并覆盖外层环境变量，避免调试器或 OpenClaw 外层进程的飞书 app id 污染项目发布身份
 
-**可工作验证**: 运行 `python test_feishu_tools.py`
+**可工作验证**: 运行 `.venv/bin/python -m pytest tests/test_feishu_tools.py -q`
 
 ## 📝 输出文件说明
 
@@ -230,13 +232,24 @@ OPENAI_MODEL_NAME=gpt-4o
 ### 可选配置 - 飞书集成
 
 ```env
+# 文档网页域名，可使用租户域名；OpenAPI 域名默认使用 https://open.feishu.cn
+LARK_DOMAIN=https://your-tenant.feishu.cn
 LARK_APP_ID=cli_xxxxxxxxxxxxxxxx
 LARK_APP_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-LARK_RECEIVER_ID=user@example.com
+
+# 接收者 open_id 必须属于当前 LARK_APP_ID 对应的 app。
+# 如果不确定 open_id，建议配置邮箱或手机号，让项目用当前 app 自动解析。
+LARK_RECEIVER_ID=ou_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+LARK_RECEIVER_EMAIL=your.name@example.com
+LARK_RECEIVER_MOBILE=13800000000
+
 LARK_FOLDER_TOKEN=xxxxxxxxxx
 ```
 
-**注意**: 如果不配置飞书凭证，系统会自动使用本地文件保存和消息日志记录作为备选方案，功能完全可用。
+**注意**:
+- 飞书 `open_id` 是 app 维度的，不能跨 app 复用；否则 IM 会返回 `open_id cross app`。
+- 如果配置了 `LARK_APP_ID` 和 `LARK_APP_SECRET`，飞书工具只使用项目 OpenAPI，不再 fallback 到 `lark-cli`，避免误用外层环境中的 app id。
+- 如果不配置飞书凭证，系统会自动使用本地文件保存和消息日志记录作为备选方案，功能完全可用。
 
 ## 💡 使用示例
 
@@ -279,9 +292,9 @@ python src/main.py --topic "人工智能"
    开始人工智能行业研究项目
 ================================================================================
 
-[HH:MM:SS] 📊 阶段1: 并行数据采集
+[HH:MM:SS] 📊 阶段1: 数据采集
 ================================================================================
-启动3位数据采集员并行工作...
+启动3位数据采集员顺序工作...
 ...
 ✅ 数据采集完成！
 

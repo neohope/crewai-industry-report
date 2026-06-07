@@ -6,6 +6,8 @@
 import sys
 import os
 import json
+import importlib
+from unittest.mock import patch, MagicMock
 
 
 def test_imports():
@@ -144,6 +146,177 @@ def test_message_tool(FeishuMessageTool):
         import traceback
         traceback.print_exc()
         return False, None
+
+
+def test_document_tool_uses_v2_content_cli_args(FeishuDocumentTool):
+    """验证文档工具使用 OpenAPI v2 的 docs +create 参数。
+
+    当前环境中默认 docs +create / --markdown 会走 v1/MCP/TAT 路径并报
+    `TAT API error: [10003] invalid param`。项目发布必须固定走：
+    `lark-cli docs +create --api-version v2 --content @.lark_tmp/*.xml`。
+    这里用 mock 防止真正创建飞书文档，只检查命令参数。
+    """
+    tool = FeishuDocumentTool(use_skill=True)
+    tool._skill_available = True
+
+    completed = MagicMock()
+    completed.returncode = 0
+    completed.stdout = json.dumps({
+        "ok": True,
+        "data": {
+            "document": {
+                "document_id": "doc_test",
+                "url": "https://example.feishu.cn/docx/doc_test"
+            }
+        }
+    }, ensure_ascii=False)
+    completed.stderr = ""
+
+    with patch.dict(os.environ, {"LARK_APP_ID": "", "LARK_APP_SECRET": ""}), \
+         patch("src.tools.feishu_tool.subprocess.run", return_value=completed) as run_mock:
+        result = json.loads(tool._run(json.dumps({
+            "title": "测试标题",
+            "content": "# 测试标题\n\n正文"
+        }, ensure_ascii=False)))
+
+    assert result["status"] == "success"
+    cmd = run_mock.call_args.args[0]
+    assert cmd[:3] == ["lark-cli", "docs", "+create"]
+    assert "--title" in cmd
+    assert "--api-version" in cmd
+    assert cmd[cmd.index("--api-version") + 1] == "v2"
+    assert "--content" in cmd
+    assert "--markdown" not in cmd
+    content_arg = cmd[cmd.index("--content") + 1]
+    assert content_arg.startswith("@.lark_tmp/")
+    assert content_arg.endswith(".xml")
+
+
+def test_message_tool_accepts_receiver_id(FeishuMessageTool):
+    """验证发布任务传 receiver_id 时会映射到 lark-cli --user-id。"""
+    tool = FeishuMessageTool(use_skill=True)
+    tool._skill_available = True
+
+    completed = MagicMock()
+    completed.returncode = 0
+    completed.stdout = json.dumps({"message_id": "om_test", "chat_id": "oc_test"})
+    completed.stderr = ""
+
+    with patch.dict(os.environ, {"LARK_APP_ID": "", "LARK_APP_SECRET": ""}), \
+         patch("src.tools.feishu_tool.subprocess.run", return_value=completed) as run_mock:
+        result = json.loads(tool._run(json.dumps({
+            "message": "测试消息",
+            "receiver_id": "ou_test_receiver"
+        }, ensure_ascii=False)))
+
+    assert result["status"] == "success"
+    cmd = run_mock.call_args.args[0]
+    assert cmd[:3] == ["lark-cli", "im", "+messages-send"]
+    assert "--user-id" in cmd
+    assert cmd[cmd.index("--user-id") + 1] == "ou_test_receiver"
+
+
+def test_document_tool_prefers_openapi_when_app_credentials_exist(FeishuDocumentTool):
+    """有 LARK_APP_ID/LARK_APP_SECRET 时，文档发布应绕过 lark-cli。"""
+    tool = FeishuDocumentTool(use_skill=True)
+    tool._skill_available = True
+
+    token_response = MagicMock()
+    token_response.status_code = 200
+    token_response.json.return_value = {"code": 0, "tenant_access_token": "tenant_token"}
+    token_response.raise_for_status.return_value = None
+
+    create_response = MagicMock()
+    create_response.status_code = 200
+    create_response.json.return_value = {
+        "code": 0,
+        "data": {
+            "document": {
+                "document_id": "doc_openapi",
+                "url": "https://example.feishu.cn/docx/doc_openapi"
+            }
+        }
+    }
+    create_response.raise_for_status.return_value = None
+
+    with patch.dict(os.environ, {"LARK_APP_ID": "cli_xxx", "LARK_APP_SECRET": "secret"}), \
+         patch("src.tools.feishu_tool.requests.post", side_effect=[token_response, create_response]) as post_mock, \
+         patch("src.tools.feishu_tool.subprocess.run") as run_mock:
+        result = json.loads(tool._run(json.dumps({
+            "title": "测试标题",
+            "content": "# 测试标题\n\n正文"
+        }, ensure_ascii=False)))
+
+    assert result["status"] == "success"
+    assert result["document_id"] == "doc_openapi"
+    assert post_mock.call_count == 2
+    run_mock.assert_not_called()
+
+
+def test_message_tool_prefers_openapi_when_app_credentials_exist(FeishuMessageTool):
+    """有 LARK_APP_ID/LARK_APP_SECRET 时，消息发布应绕过 lark-cli。"""
+    tool = FeishuMessageTool(use_skill=True)
+    tool._skill_available = True
+
+    token_response = MagicMock()
+    token_response.status_code = 200
+    token_response.json.return_value = {"code": 0, "tenant_access_token": "tenant_token"}
+    token_response.raise_for_status.return_value = None
+
+    send_response = MagicMock()
+    send_response.status_code = 200
+    send_response.json.return_value = {
+        "code": 0,
+        "data": {"message_id": "om_openapi", "chat_id": "oc_openapi"}
+    }
+    send_response.raise_for_status.return_value = None
+
+    with patch.dict(os.environ, {"LARK_APP_ID": "cli_xxx", "LARK_APP_SECRET": "secret"}), \
+         patch("src.tools.feishu_tool.requests.post", side_effect=[token_response, send_response]) as post_mock, \
+         patch("src.tools.feishu_tool.subprocess.run") as run_mock:
+        result = json.loads(tool._run(json.dumps({
+            "message": "测试消息",
+            "receiver_id": "ou_test_receiver"
+        }, ensure_ascii=False)))
+
+    assert result["status"] == "success"
+    assert result["message_id"] == "om_openapi"
+    assert post_mock.call_count == 2
+    run_mock.assert_not_called()
+
+
+def test_project_env_overrides_outer_lark_app_id(tmp_path):
+    """飞书工具必须优先使用项目 .env，而不是外层 OpenClaw 环境变量。"""
+    import src.tools.feishu_tool as feishu_tool
+
+    project_env = tmp_path / ".env"
+    project_env.write_text(
+        "LARK_APP_ID=cli_project_app\n"
+        "LARK_APP_SECRET=project_secret\n"
+        "LARK_DOMAIN=https://project.example.feishu.cn\n",
+        encoding="utf-8",
+    )
+
+    with patch.object(feishu_tool, "PROJECT_ENV_PATH", project_env), \
+         patch.dict(os.environ, {
+             "LARK_APP_ID": "cli_outer_app",
+             "LARK_APP_SECRET": "outer_secret",
+             "LARK_DOMAIN": "https://outer.example.feishu.cn",
+         }, clear=False):
+        feishu_tool._load_project_env()
+
+        token_response = MagicMock()
+        token_response.json.return_value = {"code": 0, "tenant_access_token": "tenant_token"}
+        token_response.raise_for_status.return_value = None
+
+        with patch("src.tools.feishu_tool.requests.post", return_value=token_response) as post_mock:
+            token = feishu_tool._get_tenant_access_token()
+
+    assert token == "tenant_token"
+    assert post_mock.call_args.kwargs["json"] == {
+        "app_id": "cli_project_app",
+        "app_secret": "project_secret",
+    }
 
 
 def main():

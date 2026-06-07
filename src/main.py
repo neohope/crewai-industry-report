@@ -398,6 +398,12 @@ class IndustryResearchCrew:
     def create_publish_task(self, agent: Agent, context: list) -> Task:
         """报告发布任务 - 完整实现"""
         report_title = f"{self.industry_topic}行业研究报告"
+        receiver_id = os.getenv("LARK_RECEIVER_ID", "").strip()
+        receiver_hint = (
+            f"接收者 open_id：{receiver_id}"
+            if receiver_id
+            else "接收者 open_id：请从环境变量 LARK_RECEIVER_ID 读取"
+        )
         return Task(
             description=f"""请发布这份已审核通过的{self.industry_topic}行业研究报告。
 
@@ -409,6 +415,8 @@ class IndustryResearchCrew:
 使用工具的输入格式要求：
 - feishu_document: JSON格式，包含title和content字段
 - feishu_message: JSON格式，包含message和receiver_id字段
+- {receiver_hint}
+- 必须使用上述 receiver_id，不要填写“相关人员”等占位文本
 
 通知消息内容建议：
 "【行业研究报告已发布】
@@ -471,8 +479,8 @@ class IndustryResearchCrew:
         all_results = {}
 
         try:
-            # ==================== 阶段1: 并行数据采集 ====================
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] 📊 阶段1: 并行数据采集")
+            # ==================== 阶段1: 数据采集 ====================
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] 📊 阶段1: 数据采集")
             print(f"{'='*80}")
 
             collector1 = self.create_data_collector_1()
@@ -486,11 +494,15 @@ class IndustryResearchCrew:
             collection_crew = Crew(
                 agents=[collector1, collector2, collector3],
                 tasks=[task1, task2, task3],
-                process=Process.parallel,
+                # CrewAI 0.76 的 Process 只支持 sequential / hierarchical。
+                # 旧代码使用 Process.parallel 会直接触发：
+                #   type object 'Process' has no attribute 'parallel'
+                # 因此这里使用顺序执行，先保证完整工作流稳定跑通。
+                process=Process.sequential,
                 verbose=True,
             )
 
-            print("启动3位数据采集员并行工作...")
+            print("启动3位数据采集员顺序工作...")
             collection_result = collection_crew.kickoff()
 
             all_results["collection"] = {

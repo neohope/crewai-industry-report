@@ -7,17 +7,20 @@ import sys
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from crewai.tools import BaseTool
+from pydantic import PrivateAttr
 
 
 class WebSearchTool(BaseTool):
     """网络搜索工具 - 使用byted-web-search技能"""
-    name = "web_search"
-    description = "使用火山引擎联网搜索获取最新的行业信息。输入：搜索关键词。输出：搜索结果列表。"
+    name: str = "web_search"
+    description: str = "使用火山引擎联网搜索获取最新的行业信息。输入：搜索关键词。输出：搜索结果列表。"
+
+    _skill_path: Optional[Path] = PrivateAttr(default=None)
 
     def __init__(self):
         """初始化搜索工具"""
-        self.skill_path = self._find_skill_path()
         super().__init__()
+        self._skill_path = self._find_skill_path()
 
     def _find_skill_path(self) -> Optional[Path]:
         """查找byted-web-search技能路径"""
@@ -32,10 +35,10 @@ class WebSearchTool(BaseTool):
                          auth_level: int = 0,
                          query_rewrite: bool = False) -> List[Dict[str, Any]]:
         """使用byted-web-search技能进行搜索"""
-        if not self.skill_path:
+        if not self._skill_path:
             return [{"error": "byted-web-search技能不可用", "info": "请确认skills/byted-web-search目录存在"}]
 
-        script_path = self.skill_path / "scripts" / "web_search.py"
+        script_path = self._skill_path / "scripts" / "web_search.py"
         if not script_path.exists():
             return [{"error": "搜索脚本不存在", "info": "web_search.py未找到"}]
 
@@ -135,13 +138,15 @@ class WebSearchTool(BaseTool):
 
 class NewsSearchTool(BaseTool):
     """新闻搜索工具 - 使用byted-web-search技能"""
-    name = "news_search"
-    description = "搜索最新的行业新闻和资讯。输入：搜索关键词。输出：新闻列表。"
+    name: str = "news_search"
+    description: str = "搜索最新的行业新闻和资讯。输入：搜索关键词。输出：新闻列表。"
+
+    _skill_path: Optional[Path] = PrivateAttr(default=None)
 
     def __init__(self):
         """初始化新闻搜索工具"""
-        self.skill_path = self._find_skill_path()
         super().__init__()
+        self._skill_path = self._find_skill_path()
 
     def _find_skill_path(self) -> Optional[Path]:
         """查找byted-web-search技能路径"""
@@ -153,10 +158,10 @@ class NewsSearchTool(BaseTool):
 
     def _search_with_skill(self, query: str, max_results: int = 10) -> List[Dict[str, Any]]:
         """使用byted-web-search技能进行新闻搜索"""
-        if not self.skill_path:
+        if not self._skill_path:
             return [{"error": "byted-web-search技能不可用", "info": "请确认skills/byted-web-search目录存在"}]
 
-        script_path = self.skill_path / "scripts" / "web_search.py"
+        script_path = self._skill_path / "scripts" / "web_search.py"
         if not script_path.exists():
             return [{"error": "搜索脚本不存在", "info": "web_search.py未找到"}]
 

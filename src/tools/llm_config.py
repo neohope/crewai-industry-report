@@ -11,6 +11,13 @@ import os
 from typing import Optional, Any
 from dotenv import load_dotenv
 
+try:
+    from crewai import LLM as CrewAILLM
+    HAS_CREWAI_LLM = True
+except ImportError:
+    CrewAILLM = None
+    HAS_CREWAI_LLM = False
+
 # 尝试导入 LLM 库
 try:
     from langchain_openai import ChatOpenAI, AzureChatOpenAI
@@ -50,6 +57,18 @@ class QualityConfig:
 
 class LLMConfig:
     """LLM 配置管理器"""
+
+    @staticmethod
+    def _normalize_openai_compatible_model(model_name: str) -> str:
+        """
+        将 OpenClaw 内部模型别名转换为 OpenAI-compatible/LiteLLM 可识别的模型名。
+
+        CrewAI 不理解 `volcengine-plan/doubao-seed-2.0-pro` 这种 OpenClaw 内部 catalog ID。
+        OpenAI-compatible 接口通常只需要后半段的真实模型名，例如 `doubao-seed-2.0-pro`。
+        """
+        if model_name.startswith("volcengine-plan/"):
+            return model_name.split("/", 1)[1]
+        return model_name
 
     @staticmethod
     def get_llm(temperature: float = 0.7, **kwargs):
@@ -133,12 +152,6 @@ class LLMConfig:
     @staticmethod
     def _get_compatible_llm(temperature: float, **kwargs):
         """获取 OpenAI 兼容第三方 LLM"""
-        if not HAS_OPENAI:
-            raise ImportError(
-                "需要安装 langchain-openai: "
-                "poetry add langchain-openai"
-            )
-
         base_url = os.getenv("OPENAI_COMPATIBLE_BASE_URL")
         api_key = os.getenv("OPENAI_COMPATIBLE_API_KEY")
         model_name = os.getenv("OPENAI_COMPATIBLE_MODEL_NAME")
@@ -149,6 +162,24 @@ class LLMConfig:
             raise ValueError("OPENAI_COMPATIBLE_API_KEY 未设置，请在 .env 文件中配置")
         if not model_name:
             raise ValueError("OPENAI_COMPATIBLE_MODEL_NAME 未设置，请在 .env 文件中配置")
+
+        model_name = LLMConfig._normalize_openai_compatible_model(model_name)
+
+        if HAS_CREWAI_LLM:
+            return CrewAILLM(
+                model=model_name,
+                api_key=api_key,
+                base_url=base_url,
+                temperature=temperature,
+                provider="openai",
+                **kwargs
+            )
+
+        if not HAS_OPENAI:
+            raise ImportError(
+                "需要安装 langchain-openai: "
+                "poetry add langchain-openai"
+            )
 
         return ChatOpenAI(
             base_url=base_url,
@@ -287,6 +318,13 @@ class LLMConfig:
                 for key in required:
                     if not os.getenv(key):
                         return False, f"{key} 未设置"
+                model_name = os.getenv("OPENAI_COMPATIBLE_MODEL_NAME", "")
+                if model_name.startswith("volcengine-plan/"):
+                    return False, (
+                        "OPENAI_COMPATIBLE_MODEL_NAME 不要使用 OpenClaw 内部模型 ID "
+                        f"'{model_name}'；请改为真实模型名 "
+                        f"'{LLMConfig._normalize_openai_compatible_model(model_name)}'。"
+                    )
                 if not HAS_OPENAI:
                     return False, "langchain-openai 未安装，请运行: poetry add langchain-openai"
                 return True, None

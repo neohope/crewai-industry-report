@@ -24,6 +24,7 @@ wheels/
 *.egg
 
 # 虚拟环境
+.venv/
 venv/
 ENV/
 env/
@@ -40,3 +41,14 @@ env/
 
 # 临时文件
 *.tmp
+.lark_tmp/
+
+# 运行产物
+report_draft*.md
+final_report_*.md
+project_result_*.json
+message_log.jsonl
+test_report.json
+*_行业研究报告_*.md
+*行业研究报告_*.md
+测试行业研究报告_*.md
