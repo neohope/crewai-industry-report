@@ -4,21 +4,13 @@ version = "0.2.0"
 description = "行业研究报告生成项目 - 基于CrewAI的多代理协作系统"
 authors = ["neohope <neohope@yahoo.com>"]
 readme = "README.md"
+package-mode = false
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.13"
-crewai = "^0.76.0"
-langchain-openai = "^0.2.0"
-langchain-anthropic = { version = "^0.2.0", optional = true }
-python-dotenv = "^1.0.0"
+python = ">=3.10,<3.14"
+crewai = {version = "^1.14.6", extras = ["anthropic"]}
+python-dotenv = "^1.2.2"
 requests = "^2.31.0"
-
-[tool.poetry.group.llm.dependencies]
-langchain-anthropic = "^0.2.0"
-
-[tool.poetry.extras]
-anthropic = ["langchain-anthropic"]
-all = ["langchain-anthropic"]
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"

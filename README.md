@@ -149,7 +149,7 @@ poetry run python src/main.py --help
 ### 工作流程详情
 
 #### 阶段1: 数据采集
-- 3位采集员按 CrewAI 当前兼容模式顺序工作
+- 3位采集员**并行工作**（CrewAI 1.14.6 的 `async_execution=True` + `Process.sequential` 屏障）
 - 使用真实网络搜索工具
 - 结构化数据输出
 
@@ -250,6 +250,7 @@ LARK_FOLDER_TOKEN=xxxxxxxxxx
 - 飞书 `open_id` 是 app 维度的，不能跨 app 复用；否则 IM 会返回 `open_id cross app`。
 - 如果配置了 `LARK_APP_ID` 和 `LARK_APP_SECRET`，飞书工具只使用项目 OpenAPI，不再 fallback 到 `lark-cli`，避免误用外层环境中的 app id。
 - 如果不配置飞书凭证，系统会自动使用本地文件保存和消息日志记录作为备选方案，功能完全可用。
+- 使用 Azure OpenAI 需额外安装：`poetry add 'crewai[azure-ai-inference]'`。Anthropic Claude 的原生 SDK 已通过本项目 `crewai[anthropic]` extras 默认带入。
 
 ## 💡 使用示例
 
@@ -294,7 +295,7 @@ python src/main.py --topic "人工智能"
 
 [HH:MM:SS] 📊 阶段1: 数据采集
 ================================================================================
-启动3位数据采集员顺序工作...
+启动3位数据采集员并行工作...
 ...
 ✅ 数据采集完成！
 

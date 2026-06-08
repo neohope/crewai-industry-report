@@ -186,6 +186,7 @@ class IndustryResearchCrew:
 输出格式要求：结构化的数据清单，不要写成散文。""",
             agent=agent,
             expected_output="结构化的市场数据清单，包含所有数据点及其来源、时间、统计口径。",
+            async_execution=True,
         )
 
     def create_collect_task_2(self, agent: Agent) -> Task:
@@ -222,6 +223,7 @@ class IndustryResearchCrew:
 输出格式要求：结构化的数据清单。""",
             agent=agent,
             expected_output="结构化的技术趋势数据清单，包含所有数据点及其来源和时间。",
+            async_execution=True,
         )
 
     def create_collect_task_3(self, agent: Agent) -> Task:
@@ -257,6 +259,7 @@ class IndustryResearchCrew:
 输出格式要求：结构化的数据清单。""",
             agent=agent,
             expected_output="结构化的竞争格局数据清单，包含所有数据点及其来源和时间。",
+            async_execution=True,
         )
 
     def create_analysis_task(self, agent: Agent, context: list) -> Task:
@@ -494,15 +497,13 @@ class IndustryResearchCrew:
             collection_crew = Crew(
                 agents=[collector1, collector2, collector3],
                 tasks=[task1, task2, task3],
-                # CrewAI 0.76 的 Process 只支持 sequential / hierarchical。
-                # 旧代码使用 Process.parallel 会直接触发：
-                #   type object 'Process' has no attribute 'parallel'
-                # 因此这里使用顺序执行，先保证完整工作流稳定跑通。
+                # CrewAI 1.14.6: 3 个采集 task 标记了 async_execution=True，
+                # 在 Process.sequential 内并发启动，crew 在末尾统一 join futures。
                 process=Process.sequential,
                 verbose=True,
             )
 
-            print("启动3位数据采集员顺序工作...")
+            print("启动3位数据采集员并行工作...")
             collection_result = collection_crew.kickoff()
 
             all_results["collection"] = {

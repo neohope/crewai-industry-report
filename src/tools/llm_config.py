@@ -1,35 +1,20 @@
 """
 LLM 配置模块 - 支持多种大模型提供商
-- 官方 OpenAI API（可选）
+- 官方 OpenAI API
 - OpenAI 兼容第三方 API（国内模型等）
 - Azure OpenAI
 - Anthropic Claude
 
+CrewAI 1.14.6 起，所有 provider 都通过 `crewai.LLM` 原生 SDK 路径访问，
+不再依赖 langchain-openai / langchain-anthropic。
+
 注意：必须显式选择一种 LLM 提供商，没有默认选项。
 """
 import os
-from typing import Optional, Any
+from typing import Optional
+
 from dotenv import load_dotenv
-
-try:
-    from crewai import LLM as CrewAILLM
-    HAS_CREWAI_LLM = True
-except ImportError:
-    CrewAILLM = None
-    HAS_CREWAI_LLM = False
-
-# 尝试导入 LLM 库
-try:
-    from langchain_openai import ChatOpenAI, AzureChatOpenAI
-    HAS_OPENAI = True
-except ImportError:
-    HAS_OPENAI = False
-
-try:
-    from langchain_anthropic import ChatAnthropic
-    HAS_ANTHROPIC = True
-except ImportError:
-    HAS_ANTHROPIC = False
+from crewai import LLM
 
 
 load_dotenv()
@@ -61,10 +46,11 @@ class LLMConfig:
     @staticmethod
     def _normalize_openai_compatible_model(model_name: str) -> str:
         """
-        将 OpenClaw 内部模型别名转换为 OpenAI-compatible/LiteLLM 可识别的模型名。
+        将 OpenClaw 内部模型别名转换为 OpenAI-compatible 可识别的模型名。
 
         CrewAI 不理解 `volcengine-plan/doubao-seed-2.0-pro` 这种 OpenClaw 内部 catalog ID。
         OpenAI-compatible 接口通常只需要后半段的真实模型名，例如 `doubao-seed-2.0-pro`。
+        另外，去掉前缀也避免 `crewai.LLM.__new__` 把它当作 provider 前缀路由。
         """
         if model_name.startswith("volcengine-plan/"):
             return model_name.split("/", 1)[1]
@@ -80,13 +66,12 @@ class LLMConfig:
             **kwargs: 其他传递给 LLM 的参数
 
         Returns:
-            配置好的 LLM 实例
+            配置好的 `crewai.LLM` 实例（实际为原生 provider 子类）
 
         Raises:
-            ImportError: 如果所需的 LLM 库未安装
             ValueError: 如果配置不正确
+            ImportError: 如果 provider 所需的原生 SDK 未安装（如 azure-ai-inference）
         """
-        # 检查是否选择了 LLM 提供商
         providers = []
         if os.getenv("USE_OPENAI", "false").lower() == "true":
             providers.append("OpenAI")
@@ -112,7 +97,6 @@ class LLMConfig:
                 "请在 .env 文件中只保留一个 USE_*=true"
             )
 
-        # 根据选择创建 LLM
         if os.getenv("USE_OPENAI", "false").lower() == "true":
             return LLMConfig._get_openai_llm(temperature, **kwargs)
         elif os.getenv("USE_OPENAI_COMPATIBLE", "false").lower() == "true":
@@ -122,18 +106,11 @@ class LLMConfig:
         elif os.getenv("USE_ANTHROPIC", "false").lower() == "true":
             return LLMConfig._get_anthropic_llm(temperature, **kwargs)
 
-        # 理论上不会走到这里
         raise ValueError("未知错误")
 
     @staticmethod
     def _get_openai_llm(temperature: float, **kwargs):
-        """获取官方 OpenAI LLM"""
-        if not HAS_OPENAI:
-            raise ImportError(
-                "需要安装 langchain-openai: "
-                "poetry add langchain-openai"
-            )
-
+        """获取官方 OpenAI LLM（crewai 原生 provider）"""
         api_key = os.getenv("OPENAI_API_KEY")
         model_name = os.getenv("OPENAI_MODEL_NAME")
 
@@ -142,16 +119,17 @@ class LLMConfig:
         if not model_name:
             raise ValueError("OPENAI_MODEL_NAME 未设置，请在 .env 文件中配置")
 
-        return ChatOpenAI(
-            model=model_name,
+        # `openai/` 前缀让 LLM 工厂路由到 OpenAICompletion。
+        return LLM(
+            model=f"openai/{model_name}",
             api_key=api_key,
             temperature=temperature,
-            **kwargs
+            **kwargs,
         )
 
     @staticmethod
     def _get_compatible_llm(temperature: float, **kwargs):
-        """获取 OpenAI 兼容第三方 LLM"""
+        """获取 OpenAI 兼容第三方 LLM（如豆包/Qwen 等）"""
         base_url = os.getenv("OPENAI_COMPATIBLE_BASE_URL")
         api_key = os.getenv("OPENAI_COMPATIBLE_API_KEY")
         model_name = os.getenv("OPENAI_COMPATIBLE_MODEL_NAME")
@@ -165,43 +143,25 @@ class LLMConfig:
 
         model_name = LLMConfig._normalize_openai_compatible_model(model_name)
 
-        if HAS_CREWAI_LLM:
-            return CrewAILLM(
-                model=model_name,
-                api_key=api_key,
-                base_url=base_url,
-                temperature=temperature,
-                provider="openai",
-                **kwargs
-            )
-
-        if not HAS_OPENAI:
-            raise ImportError(
-                "需要安装 langchain-openai: "
-                "poetry add langchain-openai"
-            )
-
-        return ChatOpenAI(
-            base_url=base_url,
-            api_key=api_key,
+        # 显式 provider="openai" + 自定义 base_url 让 LLM 工厂走 OpenAICompletion 原生分支；
+        # OpenAICompletion._get_client_params 会优先用 self.base_url 构造客户端。
+        return LLM(
             model=model_name,
+            provider="openai",
+            api_key=api_key,
+            base_url=base_url,
             temperature=temperature,
-            **kwargs
+            **kwargs,
         )
 
     @staticmethod
     def _get_azure_llm(temperature: float, **kwargs):
-        """获取 Azure OpenAI LLM"""
-        if not HAS_OPENAI:
-            raise ImportError(
-                "需要安装 langchain-openai: "
-                "poetry add langchain-openai"
-            )
-
+        """获取 Azure OpenAI LLM（crewai 原生 AzureCompletion）"""
         azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
         api_key = os.getenv("AZURE_OPENAI_API_KEY")
         deployment_name = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
-        api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
+        # crewai AzureCompletion 的默认 api_version 是 "2024-06-01"，与 crewai 内部默认对齐。
+        api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-06-01")
 
         if not azure_endpoint:
             raise ValueError("AZURE_OPENAI_ENDPOINT 未设置，请在 .env 文件中配置")
@@ -210,24 +170,19 @@ class LLMConfig:
         if not deployment_name:
             raise ValueError("AZURE_OPENAI_DEPLOYMENT_NAME 未设置，请在 .env 文件中配置")
 
-        return AzureChatOpenAI(
-            azure_endpoint=azure_endpoint,
+        # `azure/` 前缀路由到 AzureCompletion；该 provider 用字段名 `endpoint`（不是 api_base）。
+        return LLM(
+            model=f"azure/{deployment_name}",
             api_key=api_key,
-            azure_deployment=deployment_name,
+            endpoint=azure_endpoint,
             api_version=api_version,
             temperature=temperature,
-            **kwargs
+            **kwargs,
         )
 
     @staticmethod
     def _get_anthropic_llm(temperature: float, **kwargs):
-        """获取 Anthropic Claude LLM"""
-        if not HAS_ANTHROPIC:
-            raise ImportError(
-                "需要安装 langchain-anthropic: "
-                "poetry add langchain-anthropic"
-            )
-
+        """获取 Anthropic Claude LLM（crewai 原生 AnthropicCompletion）"""
         api_key = os.getenv("ANTHROPIC_API_KEY")
         model_name = os.getenv("ANTHROPIC_MODEL_NAME")
 
@@ -236,11 +191,13 @@ class LLMConfig:
         if not model_name:
             raise ValueError("ANTHROPIC_MODEL_NAME 未设置，请在 .env 文件中配置")
 
-        return ChatAnthropic(
-            model=model_name,
+        # `anthropic/` 前缀路由到 AnthropicCompletion；需要 `crewai[anthropic]` extras
+        # 提供 anthropic SDK（本项目 pyproject.toml 已默认带）。
+        return LLM(
+            model=f"anthropic/{model_name}",
             api_key=api_key,
             temperature=temperature,
-            **kwargs
+            **kwargs,
         )
 
     @staticmethod
@@ -277,7 +234,6 @@ class LLMConfig:
             (是否有效, 错误信息)
         """
         try:
-            # 检查是否选择了 LLM 提供商
             providers = []
             if os.getenv("USE_OPENAI", "false").lower() == "true":
                 providers.append("OpenAI")
@@ -303,14 +259,11 @@ class LLMConfig:
                     "请在 .env 文件中只保留一个 USE_*=true"
                 )
 
-            # 验证具体选择的配置
             if os.getenv("USE_OPENAI", "false").lower() == "true":
                 if not os.getenv("OPENAI_API_KEY"):
                     return False, "OPENAI_API_KEY 未设置"
                 if not os.getenv("OPENAI_MODEL_NAME"):
                     return False, "OPENAI_MODEL_NAME 未设置"
-                if not HAS_OPENAI:
-                    return False, "langchain-openai 未安装，请运行: poetry add langchain-openai"
                 return True, None
 
             elif os.getenv("USE_OPENAI_COMPATIBLE", "false").lower() == "true":
@@ -325,8 +278,6 @@ class LLMConfig:
                         f"'{model_name}'；请改为真实模型名 "
                         f"'{LLMConfig._normalize_openai_compatible_model(model_name)}'。"
                     )
-                if not HAS_OPENAI:
-                    return False, "langchain-openai 未安装，请运行: poetry add langchain-openai"
                 return True, None
 
             elif os.getenv("USE_AZURE_OPENAI", "false").lower() == "true":
@@ -334,8 +285,13 @@ class LLMConfig:
                 for key in required:
                     if not os.getenv(key):
                         return False, f"{key} 未设置"
-                if not HAS_OPENAI:
-                    return False, "langchain-openai 未安装，请运行: poetry add langchain-openai"
+                try:
+                    import azure.ai.inference  # noqa: F401
+                except ImportError:
+                    return False, (
+                        "Azure 原生 provider 需要 azure-ai-inference 库。请运行: "
+                        "poetry add 'crewai[azure-ai-inference]'"
+                    )
                 return True, None
 
             elif os.getenv("USE_ANTHROPIC", "false").lower() == "true":
@@ -343,8 +299,13 @@ class LLMConfig:
                     return False, "ANTHROPIC_API_KEY 未设置"
                 if not os.getenv("ANTHROPIC_MODEL_NAME"):
                     return False, "ANTHROPIC_MODEL_NAME 未设置"
-                if not HAS_ANTHROPIC:
-                    return False, "langchain-anthropic 未安装，请运行: poetry add langchain-anthropic"
+                try:
+                    import anthropic  # noqa: F401
+                except ImportError:
+                    return False, (
+                        "anthropic SDK 未安装。请运行: "
+                        "poetry add 'crewai[anthropic]'"
+                    )
                 return True, None
 
             return False, "未知的 LLM 提供商"
