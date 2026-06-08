@@ -33,11 +33,11 @@ class QualityConfig:
 
     @staticmethod
     def passing_score() -> int:
-        """通过评分阈值，默认95分"""
+        """通过评分阈值，默认100分（干货版，总分120分）"""
         try:
-            return int(os.getenv("PASSING_SCORE", "95"))
+            return int(os.getenv("PASSING_SCORE", "100"))
         except ValueError:
-            return 95
+            return 100
 
 
 class LLMConfig:

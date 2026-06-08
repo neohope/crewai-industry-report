@@ -14,8 +14,8 @@ from tempfile import NamedTemporaryFile
 from typing import Any, Dict, List, Optional
 import requests
 from dotenv import load_dotenv
-from crewai.tools import BaseTool
-from pydantic import PrivateAttr
+from crewai.tools import BaseTool, tool
+
 
 
 # 飞书工具经常在 OpenClaw/调试器等外层进程中被单独导入；这些外层进程
@@ -126,16 +126,13 @@ def _resolve_open_id_by_contact(token: str) -> Optional[str]:
     return open_id
 
 
-class FeishuDocumentTool(BaseTool):
+class FeishuDocumentTool:
     """飞书文档工具 - 优先使用lark-doc技能，不可用时回退到本地文件系统"""
     name: str = "feishu_document"
     description: str = "创建飞书文档并写入内容。输入：JSON格式，包含title和content。输出：文档URL和状态。"
 
-    _use_skill: bool = PrivateAttr(default=True)
-    _skill_available: bool = PrivateAttr(default=False)
 
     def __init__(self, use_skill: bool = True):
-        super().__init__()
         self._use_skill = use_skill
         self._skill_available = self._check_lark_cli()
 
@@ -573,16 +570,13 @@ class FeishuDocumentTool(BaseTool):
         return json.dumps(result, ensure_ascii=False)
 
 
-class FeishuMessageTool(BaseTool):
+class FeishuMessageTool:
     """飞书消息工具 - 优先使用lark-im技能，不可用时回退到本地日志"""
     name: str = "feishu_message"
     description: str = "发送飞书消息通知。输入：JSON格式，包含message和可选的receiver_id/chat_id。输出：发送状态。"
 
-    _use_skill: bool = PrivateAttr(default=True)
-    _skill_available: bool = PrivateAttr(default=False)
 
     def __init__(self, use_skill: bool = True):
-        super().__init__()
         self._use_skill = use_skill
         self._skill_available = self._check_lark_cli()
 
@@ -802,3 +796,53 @@ class FeishuMessageTool(BaseTool):
 
         result = self._log_message(message, user_id or chat_id)
         return json.dumps(result, ensure_ascii=False)
+
+
+# CrewAI 1.14.6 兼容：@tool 装饰器包装函数
+# 旧代码中使用：FeishuDocumentTool() 和 FeishuMessageTool() 实例化
+# 新代码提供兼容的包装，同时暴露 @tool 函数
+
+_doc_tool_instance = None
+_msg_tool_instance = None
+
+
+def _get_doc_tool():
+    global _doc_tool_instance
+    if _doc_tool_instance is None:
+        _doc_tool_instance = FeishuDocumentTool()
+    return _doc_tool_instance
+
+
+def _get_msg_tool():
+    global _msg_tool_instance
+    if _msg_tool_instance is None:
+        _msg_tool_instance = FeishuMessageTool()
+    return _msg_tool_instance
+
+
+@tool("feishu_document")
+def feishu_document(tool_input: str) -> str:
+    """
+    创建飞书文档并写入内容。
+
+    Args:
+        tool_input: JSON格式字符串，包含title和content字段
+
+    Returns:
+        JSON格式的执行结果，包含文档URL和状态
+    """
+    return _get_doc_tool()._run(tool_input)
+
+
+@tool("feishu_message")
+def feishu_message(tool_input: str) -> str:
+    """
+    发送飞书消息通知。
+
+    Args:
+        tool_input: JSON格式字符串，包含message和可选的receiver_id/chat_id
+
+    Returns:
+        JSON格式的执行结果，包含发送状态
+    """
+    return _get_msg_tool()._run(tool_input)
